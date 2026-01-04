@@ -13,7 +13,7 @@ spec:
   volumeMode: Filesystem
   storageClassName: ""
   hostPath:
-    path: /root/cluster-data/mysql-pv-claim-v3
+    path: /root/cluster-data/mysql-pv-claim-v4
     type: DirectoryOrCreate
   claimRef:
     namespace: kubeflow

@@ -13,7 +13,7 @@ spec:
   volumeMode: Filesystem
   storageClassName: ""
   hostPath:
-    path: /root/cluster-data/minio-pvc-v3
+    path: /root/cluster-data/minio-pvc-v4
     type: DirectoryOrCreate
   claimRef:
     namespace: kubeflow
