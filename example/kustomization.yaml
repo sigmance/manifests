@@ -33,6 +33,10 @@ sortOptions:
     - ValidatingWebhookConfiguration
 
 resources:
+# Local PVs for Kubeflow MySQL PVCs
+- katib-mysql-pv.yaml
+- mysql-pv-claim-pv.yaml
+- minio-pvc-pv.yaml
 # Cert-Manager
 - ../common/cert-manager/base
 - ../common/cert-manager/kubeflow-issuer/base

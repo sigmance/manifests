@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: katib-mysql-pv
+  labels:
+    type: local
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  volumeMode: Filesystem
+  storageClassName: ""
+  hostPath:
+    path: /root/cluster-data/katib-mysql-v3
+    type: DirectoryOrCreate
+  claimRef:
+    namespace: kubeflow
+    name: katib-mysql
