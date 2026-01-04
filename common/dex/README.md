@@ -32,6 +32,10 @@ Modify the Dex ConfigMap to connect to Keycloak.
 
 ```bash
 KEYCLOAK_ISSUER="https://keycloak.example.com/realms/<my-realm>"
+# INTERNAL Keycloak (running inside the Kubernetes cluster)
+KEYCLOAK_JWKS_URI="http://keycloak.auth.svc.cluster.local:8080/realms/<my-realm>/protocol/openid-connect/certs"
+# If Keycloak is external:
+#KEYCLOAK_JWKS_URI="https://keycloak.example.com/realms/<my-realm>/protocol/openid-connect/certs"
 CLIENT_ID="kubeflow-oidc-authservice"
 CLIENT_SECRET="<YOUR_KEYCLOAK_CLIENT_SECRET>"
 REDIRECT_URI="https://kubeflow.example.com/dex/callback"
@@ -74,10 +78,22 @@ data:
       name: keycloak
       config:
         issuer: $KEYCLOAK_ISSUER
+
+        # Override JWKS endpoint: Dex will fetch Keycloak's JWKs from here.
+        # This is useful when issuer discovery fails or when the IdP uses
+        # self-signed / internal-only certificates.
+        # Keycloak's endpoint /realms/{realm}/protocol/openid-connect/certs. See the Keycloak documentation here https://www.keycloak.org/docs/latest/securing_apps/index.html#certificate-endpoint
+        jwksUri: $KEYCLOAK_JWKS_URI
         clientID: $CLIENT_ID
         clientSecret: $CLIENT_SECRET
         redirectURI: $REDIRECT_URI
-        insecure: false
+        insecureSkipVerify: true 
+        # Disable TLS certificate verification when connecting to the issuer.
+        # This is required for test or on-premises installations using self-signed
+        # certificates.
+        # Dex does not support an `insecure` field. TLS verification is controlled
+        # via `insecureSkipVerify`, which is implemented in the Dex OIDC connector.
+        # Source: https://github.com/dexidp/dex/blob/master/connector/oidc/oidc.go
         insecureSkipEmailVerified: true
         userNameKey: email       
         scopes:
@@ -178,10 +194,8 @@ spec:
       prefix: "Bearer "
 ISTIO_REQUEST_AUTH_CONFIG
 
-
-# For Kubeflow 1.91, change istio-1-24 to istio-1-22
-kustomize build common/istio-1-24/istio-install/overlays/oauth2-proxy | kubectl delete -f -
-kustomize build common/istio-1-24/istio-install/overlays/oauth2-proxy | kubectl apply -f -
+kustomize build common/istio/istio-install/overlays/oauth2-proxy | kubectl delete -f -
+kustomize build common/istio/istio-install/overlays/oauth2-proxy | kubectl apply -f -
 kustomize build common/oauth2-proxy/overlays/m2m-dex-only/ | kubectl delete -f -
 kustomize build common/oauth2-proxy/overlays/m2m-dex-only/ | kubectl apply -f -
 ```
@@ -189,3 +203,34 @@ kustomize build common/oauth2-proxy/overlays/m2m-dex-only/ | kubectl apply -f -
 ## Final Checks
 - **Review Logs**: Make sure to tail the logs of the Dex, OAuth2 Proxy, and Istio ingress gateway deployments to verify that the configurations are working as expected.
 - **Test Authentication**: Try accessing your Kubeflow endpoint (ex. https://kubeflow.example.com) and verify that you’re redirected to Keycloak for authentication and that after login you are correctly returned to Kubeflow.
+
+---
+
+# Known issues
+
+- Microsoft Azure deployment with AD groups authentication: having a large number of AD groups assigned to a user may lead to Dex authentication issues with HTTP 4xx/5xx responses. To fix this - make the authentication more precise with the whitelisting of the groups. [Documentation reference](https://dexidp.io/docs/connectors/microsoft/#:~:text=%2D%20email-,Groups,-When%20the%20groups)
+
+Dex configMap example:
+
+```yaml
+"connectors" = [
+  {
+    "type" = "microsoft"
+    "id"   = "microsoft"
+    "name" = "Microsoft"
+    "config" = {
+      "clientID"             = "$${DEX_MICROSOFT_CLIENT_ID}"
+      "clientSecret"         = "$${DEX_MICROSOFT_CLIENT_SECRET}"
+      "redirectURI"          = "https://kubeflow.example.com/dex/callback"
+      "tenant"               = "$${DEX_MICROSOFT_TENANT_ID}"
+
+      "emailToLowercase"     = true (optional but should be always used)
+      "groups"               = "<AD groups>"
+      "onlySecurityGroups"   = true (optional, AD groups may have different assignments)
+      "useGroupsAsWhitelist" = true 
+    }
+  }
+]
+```
+---
+

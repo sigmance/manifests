@@ -1,79 +1,61 @@
 #!/usr/bin/env bash
-# This script helps to create a PR to update the manifests
-set -euxo pipefail
-IFS=$'\n\t'
+# This script helps to create a PR to update the unified Istio manifests
 
-COMMIT="1.24.3"
-CURRENT_VERSION="1-24" 
-NEW_VERSION="1-24" # Must be a release
+SCRIPT_DIRECTORY=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+source "${SCRIPT_DIRECTORY}/library.sh"
 
-SRC_DIR=${SRC_DIR:=/tmp/istio} # Must be a release
-BRANCH=${BRANCH:=istio-${COMMIT?}}
+setup_error_handling
 
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
-MANIFESTS_DIR=$(dirname $SCRIPT_DIR)
+COMPONENT_NAME="istio"
+COMMIT="1.28.0"  # Update this for new versions
+SOURCE_DIRECTORY=${SOURCE_DIRECTORY:=/tmp/${COMPONENT_NAME}}
+BRANCH_NAME=${BRANCH_NAME:=${COMPONENT_NAME}-${COMMIT?}}
 
-ISTIO_OLD=$MANIFESTS_DIR/common/istio-${CURRENT_VERSION}
-ISTIO_NEW=$MANIFESTS_DIR/common/istio-${NEW_VERSION}
+# Path configurations
+MANIFESTS_DIRECTORY=$(dirname $SCRIPT_DIRECTORY)
+ISTIO_DIRECTORY=$MANIFESTS_DIRECTORY/common/${COMPONENT_NAME}
 
-if [ ! -d "$ISTIO_NEW" ]; then
-cp -a $ISTIO_OLD $ISTIO_NEW
-fi 
+create_branch "$BRANCH_NAME"
 
-echo "Creating branch: ${BRANCH}"
-
-if [ -n "$(git status --porcelain)" ]; then
-  echo "WARNING: You have uncommitted changes"
-fi
-if [ `git branch --list $BRANCH` ]
-then
-   echo "WARNING: Branch $BRANCH already exists."
-fi
-
-# Create the branch in the manifests repository
-if ! git show-ref --verify --quiet refs/heads/$BRANCH; then
-    git checkout -b $BRANCH
-else
-    echo "Branch $BRANCH already exists."
-fi
-echo "Checking out in $SRC_DIR to $COMMIT..."
-
-# Checkout the istio repository
-if [ ! -d "$SRC_DIR" ]; then
-mkdir -p $SRC_DIR
-fi
-cd $SRC_DIR
+echo "Checking out in $SOURCE_DIRECTORY to $COMMIT..."
+mkdir -p $SOURCE_DIRECTORY
+cd $SOURCE_DIRECTORY
 if [ ! -d "istio-${COMMIT}" ]; then
     wget "https://github.com/istio/istio/releases/download/${COMMIT}/istio-${COMMIT}-linux-amd64.tar.gz"
     tar xvfz istio-${COMMIT}-linux-amd64.tar.gz
 fi
 
-ISTIOCTL=$SRC_DIR/istio-${COMMIT}/bin/istioctl
-cd $ISTIO_NEW
+ISTIOCTL=$SOURCE_DIRECTORY/istio-${COMMIT}/bin/istioctl
+cd $ISTIO_DIRECTORY
 
-$ISTIOCTL manifest generate -f profile.yaml -f profile-overlay.yaml > dump.yaml
+echo "Generating CNI manifests (default)..."
+$ISTIOCTL manifest generate -f profile.yaml -f profile-overlay.yaml \
+  --set components.cni.enabled=true \
+  --set components.cni.namespace=kube-system > dump.yaml
 ./split-istio-packages -f dump.yaml
-mv $ISTIO_NEW/crd.yaml $ISTIO_NEW/istio-crds/base
-mv $ISTIO_NEW/install.yaml $ISTIO_NEW/istio-install/base
-mv $ISTIO_NEW/cluster-local-gateway.yaml $ISTIO_NEW/cluster-local-gateway/base
+mv $ISTIO_DIRECTORY/crd.yaml $ISTIO_DIRECTORY/istio-crds/base/
+mv $ISTIO_DIRECTORY/install.yaml $ISTIO_DIRECTORY/istio-install/base/
+mv $ISTIO_DIRECTORY/cluster-local-gateway.yaml $ISTIO_DIRECTORY/cluster-local-gateway/base/
 rm dump.yaml
 
-if [ -n "$(git status --porcelain)" ]; then
-  echo "WARNING: You have uncommitted changes"
-fi
+echo "Generating ztunnel manifests (ambient mode)..."
+$ISTIOCTL manifest generate -f profile.yaml -f profile-overlay.yaml \
+  --set components.cni.enabled=true \
+  --set components.ztunnel.enabled=true > dump-ztunnel.yaml
+./split-istio-packages -f dump-ztunnel.yaml
+mv $ISTIO_DIRECTORY/ztunnel.yaml $ISTIO_DIRECTORY/istio-install/components/ambient-mode/
+rm dump-ztunnel.yaml crd.yaml install.yaml cluster-local-gateway.yaml
 
-# Update README.md to synchronize with the upgraded Istio version
-echo "Updating README..."
-SRC_TXT="\[.*\](https://github.com/istio/istio/releases/tag/.*)"
-DST_TXT="\[$COMMIT\](https://github.com/istio/istio/releases/tag/$COMMIT)"
+check_uncommitted_changes
 
-sed -i "s|$SRC_TXT|$DST_TXT|g" "${MANIFESTS_DIR}"/README.md
+echo "Updating tag in istio-sidecar-injector-patch.yaml..."
+sed -i "s/\"tag\": \".*\"/\"tag\": \"$COMMIT\"/" $ISTIO_DIRECTORY/istio-install/base/patches/istio-sidecar-injector-patch.yaml
 
-#Synchronize the updated directory names with other files
-find "$MANIFESTS_DIR" -type f -not -path '*/.git/*' -exec sed -i "s/istio-${CURRENT_VERSION}/istio-${NEW_VERSION}/g" {} +
+SOURCE_TEXT="\[.*\](https://github.com/istio/istio/releases/tag/.*)"
+DESTINATION_TEXT="\[$COMMIT\](https://github.com/istio/istio/releases/tag/$COMMIT)"
 
-echo "Committing the changes..."
-cd "$MANIFESTS_DIR"
-rm -rf $ISTIO_OLD
-git add .
-git commit -s -m "Upgrade istio to v.${COMMIT}"
+update_readme "$MANIFESTS_DIRECTORY" "$SOURCE_TEXT" "$DESTINATION_TEXT"
+
+commit_changes "$MANIFESTS_DIRECTORY" "Upgrade istio to v.${COMMIT}" "."
+
+echo "Synchronization completed successfully."
