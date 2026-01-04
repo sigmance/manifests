@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: seaweedfs-pv
+  labels:
+    type: local
+spec:
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  volumeMode: Filesystem
+  storageClassName: ""
+  hostPath:
+    path: /root/cluster-data/seaweed-fs
+    type: DirectoryOrCreate
+  claimRef:
+    namespace: kubeflow
+    name: seaweedfs-pvc
