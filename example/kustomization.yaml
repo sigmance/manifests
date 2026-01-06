@@ -103,6 +103,8 @@ resources:
 - ../applications/trainer/overlays
 # User namespace
 - ../common/user-namespace/base
+# UATS trading-engine resources in Kubeflow user namespace
+- uats-kubeflow-user-resources.yaml
 # KServe
 - ../applications/kserve/kserve
 - ../applications/kserve/models-web-app/overlays/kubeflow
