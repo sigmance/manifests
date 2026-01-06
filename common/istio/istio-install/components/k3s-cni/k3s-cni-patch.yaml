@@ -1,0 +1,16 @@
+# K3s stores CNI config under /var/lib/rancher/k3s/agent/etc/cni/net.d and uses /usr/bin for binaries.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: istio-cni-node
+  namespace: kube-system
+spec:
+  template:
+    spec:
+      volumes:
+      - name: cni-bin-dir
+        hostPath:
+          path: /usr/bin
+      - name: cni-net-dir
+        hostPath:
+          path: /var/lib/rancher/k3s/agent/etc/cni/net.d

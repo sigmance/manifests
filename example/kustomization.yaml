@@ -44,7 +44,9 @@ resources:
 # Istio
 - ../common/istio/istio-crds/base
 - ../common/istio/istio-namespace/base
-- ../common/istio/istio-install/overlays/oauth2-proxy
+- ../common/istio/istio-install/overlays/oauth2-proxy-k3s
+# NOTE: For K3s/Rancher, use:
+# - ../common/istio/istio-install/overlays/oauth2-proxy-k3s
 # NOTE: For Google Kubernetes Engine (GKE), use:
 # - ../common/istio/istio-install/overlays/gke
 # NOTE: For Istio Ambient Mode (sidecar-free), use one of:

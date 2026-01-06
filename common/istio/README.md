@@ -11,6 +11,12 @@ CNI eliminates privileged init containers and improves security compliance with 
 kubectl apply -k istio-install/overlays/oauth2-proxy
 ```
 
+### K3s/Rancher CNI
+K3s stores CNI config in `/var/lib/rancher/k3s/agent/etc/cni/net.d` and uses `/usr/bin` for CNI binaries.
+```bash
+kubectl apply -k istio-install/overlays/oauth2-proxy-k3s
+```
+
 ### GKE-specific CNI
 GKE mounts `/opt/cni/bin` as read-only for security reasons, preventing the Istio CNI installer from writing the CNI binary. Use the GKE-specific overlay: `kubectl apply -k common/istio/istio-install/overlays/gke`. This overlay uses GKE's writable CNI directory at `/home/kubernetes/bin`. For more details, see [Istio CNI Prerequisites](https://istio.io/latest/docs/setup/additional-setup/cni/#prerequisites) and [Platform Prerequisites](https://istio.io/latest/docs/ambient/install/platform-prerequisites/)
 
